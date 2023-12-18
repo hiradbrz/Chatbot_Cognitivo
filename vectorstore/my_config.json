@@ -1,0 +1,1 @@
+{"faiss_index_factory_str": "Flat", "embedding_field": "embedding", "embedding_dim": 384, "similarity": "cosine", "duplicate_documents": "overwrite"}

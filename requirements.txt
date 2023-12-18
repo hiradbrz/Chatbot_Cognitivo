@@ -1,0 +1,17 @@
+ipykernel
+ipython
+transformers
+pypdf
+openpyxl
+langchain
+torch
+accelerate
+bitsandbytes
+ctransformers
+sentence_transformers
+SQLAlchemy==1.4.47
+faiss_cpu
+chromadb
+docx2txt
+nltk
+farm-haystack
