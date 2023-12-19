@@ -1,1 +1,1 @@
-{"faiss_index_factory_str": "Flat", "embedding_field": "embedding", "embedding_dim": 384, "similarity": "cosine", "duplicate_documents": "overwrite"}
+{"faiss_config_path": "/Users/hirad/Chatbot_Cognitivo-1/vectorstore/my_config.json", "faiss_index_factory_str": "Flat", "embedding_field": "embedding", "embedding_dim": 384, "similarity": "cosine", "duplicate_documents": "overwrite"}

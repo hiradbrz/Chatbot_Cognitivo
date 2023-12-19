@@ -1,123 +1,77 @@
 import gradio as gr
-import re
-
-# from model import qa_bot
-from model import summary_llm
+from model import QA_Model
 from vectordb import vectorStore
 
-import time
+qa_bot = QA_Model()
+db = vectorStore()
 
-summary_bot = summary_llm(task='summarization')
-vstore = vectorStore()
+def create_prompt(question, context):
+    """
+    Create a prompt template for the QA model, specifically for handling
+    inquiries about land tax and related problems for NSW service.
+    """
+    prompt = f"""
+    As a knowledgeable assistant for New South Wales (NSW) land tax services, 
+    answer the following question based on the provided context.
 
+    Question: {question}
 
-def edit_text(text,lang_str):
-    return text,lang_str
+    Context Relevant to NSW Land Tax Services: {context}
 
+    Answer:
+    """
+    return prompt.strip()
 
-def summarize(text,option,feedbackoption):
-    if text == None : return ""
-    time.sleep(1)
-    
-    input_prompt =f"""
-            You are a customer service officer who listen to customer enquiries and complaints.
-            Write a concise and short summary of the following customer enquiry.Do not add resolution steps.
-            ```{text}```
-        """
-    result = summary_bot.summary_pipe(input_prompt)  
-    result = result[0]['summary_text']
-    if option == "Customer Enquiry":
-        search_results = vstore.dbsearch(query=text)
+def start_chat(gender, user_id, age):
+    welcome_message = (
+        f"Hello! I'm here to assist you with NSW land tax services.\n"
+        f"Gender: {gender}, ID: {user_id}, Age: {age}\n"
+        "Feel free to ask me any questions you have.\n\n"
+    )
+    return welcome_message
 
-    return result,search_results
+def update_chat(history, user_input):
+    if not user_input.strip():
+        return history + "Bot: Please enter a question.\n\n", ""
 
-title = """🎤 Customer Service Bot 💬"""
+    context = db.dbsearch(query=user_input)
+    prompt = create_prompt(user_input, context)  
+    bot_response = qa_bot.answer(prompt)
 
-custom_css = """
-  #banner-image {
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-  }
-  #chat-message {
-    font-size: 14px;
-    min-height: 300px;
-  }
+    return history + f"You: {user_input}\n\nBot: {bot_response}\n\n", ""
+
+css_style = """
+    body { font-family: Arial, sans-serif; }
+    .gr-textbox, .gr-radio, .gr-number, .gr-button { width: 100%; }
+    .gr-button { background-color: #4CAF50; color: white; margin-top: 10px; }
+    .gr-output { margin-top: 15px; }
+    .footer { text-align: center; margin-top: 20px; font-size: 0.8em; }
 """
 
+def main_interface():
+    with gr.Blocks(css=css_style) as block:
+        gr.Markdown("🤖 NSW Land Tax Services Chatbot 💬")
+        
+        with gr.Row():
+            gender = gr.Radio(["Male", "Female", "Other"], label="Gender")
+            user_id = gr.Textbox(label="ID")
+            age = gr.Number(label="Age", min=18, max=120)
+            start_button = gr.Button("Start Chat")
 
-block = gr.Blocks(css=custom_css)
+        chat_history = gr.Textbox(label="Chat History", placeholder="Chat will appear here...", lines=15, interactive=False)
+        user_message = gr.Textbox(label="Your Message", placeholder="Type your message here...")
+        send_button = gr.Button("Send")
 
-with block:
-    gr.HTML(title)
+        start_button.click(start_chat, inputs=[gender, user_id, age], outputs=chat_history)
+        send_button.click(update_chat, inputs=[chat_history, user_message], outputs=[chat_history, user_message])
 
-    with gr.Group():
-        with gr.Box():
-       
-            # Transcribe Button
-            text = gr.Textbox(label="Transcription",)
-            with gr.Row(): 
-                submit_btn = gr.Button("Submit",scale=0)
-                clear_btn = gr.Button("Clear",scale=0)
-                
-            with gr.Box(): 
-                # query Option
-                query_option = gr.Radio(
-                choices=["Customer Enquiry", "General"],
-                label="Select an option",
-                default="Customer Enquiry"
-                )
-                print(query_option)
-            
-                summary_output =  gr.Textbox(label="Summary")
-                summary_btn = gr.Button("Summary")
-                with gr.Row():
-                    qa_history = gr.Textbox(label="Resolution")
-                    feedback_option = gr.Radio(
-                    choices=["👍", "👎"],
-                    label="Was this recommendation useful?",
-                    default = "👍"
-                    )
+        gr.Markdown('''
+            <div class="footer">
+                <p>Powered by Cognitivo</p>
+            </div>
+            ''')
 
-                
-                submit_btn.click(
-                edit_text,
-                inputs=[
-                    text                    
-                ],
-                outputs=[
-                    text
-                   
-                ]
-                )
-               
-                summary_btn.click(
-                summarize,
-                inputs=[
-                    text,
-                    query_option,
-                    feedback_option         
-                ],
-                outputs=[
-                    summary_output,
-                 
-                    qa_history
-                ]
-                )
-               
-           
-        gr.HTML('''
-        <div class="footer">
-            <p>Demo by Cognitivo
-            </p>
-        </div>
-        ''')
+    return block
 
-block.launch(share=False,server_name="0.0.0.0")
-
-
-
-
-
-
-
+if __name__ == "__main__":
+    main_interface().launch(share=False)

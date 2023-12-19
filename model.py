@@ -1,42 +1,31 @@
-from langchain.document_loaders import PyPDFLoader, DirectoryLoader
-from langchain import PromptTemplate
-from langchain.embeddings import HuggingFaceEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.vectorstores import Chroma
-from langchain.llms import CTransformers
-from langchain.chains import RetrievalQA
-from transformers import T5Tokenizer, T5ForConditionalGeneration
+from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 from transformers import pipeline
-from ctransformers import AutoModelForCausalLM
-import pickle
-from sklearn.feature_extraction.text import CountVectorizer
-from sklearn.feature_extraction.text import TfidfTransformer
 import torch
 
-import sys
-import psutil
-import os
-from pathlib import Path
+class QA_Model():
+    def __init__(self):
+        # Load pre-trained model tokenizer and model
+        self.tokenizer = AutoTokenizer.from_pretrained('deepset/roberta-base-squad2')
+        self.model = AutoModelForQuestionAnswering.from_pretrained('deepset/roberta-base-squad2')
 
+        # Check if GPU is available and use it
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model.to(self.device)
 
-ROOT = os.getcwd()
+    def answer(self, question, context):
+        # Combine question and context for the model
+        inputs = self.tokenizer.encode_plus(question, context, add_special_tokens=True, return_tensors='pt')
+        inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-DB_FAISS_PATH = ROOT + '/vectorstore/db_faiss'
-DB_CHROMA_PATH = ROOT + '/vectorstore/db_chroma'
+        # Get model outputs
+        with torch.no_grad():
+            outputs = self.model(**inputs)
 
+        # Extract the start and end tokens with the highest probability of being the answer
+        answer_start = torch.argmax(outputs.start_logits)
+        answer_end = torch.argmax(outputs.end_logits) + 1
 
-class summary_llm():
-    def __init__(self,task='summarization') -> None:
-        self.summary_checkpoint = "MBZUAI/LaMini-Flan-T5-783M"
-        self.summarytokenizer = T5Tokenizer.from_pretrained(self.summary_checkpoint)
-        self.summarybase_model = T5ForConditionalGeneration.from_pretrained(self.summary_checkpoint, device_map='auto', torch_dtype=torch.float32)
-        self.summary_pipe = pipeline(
-            'summarization',
-            model = self.summarybase_model,
-            tokenizer = self.summarytokenizer,
-            max_length = 1000, 
-            min_length = 50)
-        # Set gpu_layers to the number of layers to offload to GPU. Set to 0 if no GPU acceleration is available on your system.
-    
-            
+        # Convert tokens to the answer string
+        answer = self.tokenizer.convert_tokens_to_string(self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0][answer_start:answer_end]))
 
+        return answer

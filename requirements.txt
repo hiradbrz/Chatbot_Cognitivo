@@ -15,3 +15,4 @@ chromadb
 docx2txt
 nltk
 farm-haystack
+gradio==3.50.2
