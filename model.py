@@ -1,31 +1,57 @@
-from transformers import AutoTokenizer, AutoModelForQuestionAnswering
-from transformers import pipeline
 import torch
+from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 
-class QA_Model():
+class QA_Model:
     def __init__(self):
-        # Load pre-trained model tokenizer and model
-        self.tokenizer = AutoTokenizer.from_pretrained('deepset/roberta-base-squad2')
-        self.model = AutoModelForQuestionAnswering.from_pretrained('deepset/roberta-base-squad2')
-
-        # Check if GPU is available and use it
+        self.tokenizer = AutoTokenizer.from_pretrained('bert-large-uncased-whole-word-masking-finetuned-squad')
+        self.model = AutoModelForQuestionAnswering.from_pretrained('bert-large-uncased-whole-word-masking-finetuned-squad')
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model.to(self.device)
 
     def answer(self, question, context):
-        # Combine question and context for the model
-        inputs = self.tokenizer.encode_plus(question, context, add_special_tokens=True, return_tensors='pt')
-        inputs = {k: v.to(self.device) for k, v in inputs.items()}
+        # Split context into manageable chunks
+        chunks = self.chunk_context(context)
 
-        # Get model outputs
-        with torch.no_grad():
-            outputs = self.model(**inputs)
+        best_answer = None
+        highest_confidence = -float('Inf')
 
-        # Extract the start and end tokens with the highest probability of being the answer
-        answer_start = torch.argmax(outputs.start_logits)
-        answer_end = torch.argmax(outputs.end_logits) + 1
+        for chunk in chunks:
+            inputs = self.tokenizer.encode_plus(question, chunk, add_special_tokens=True, return_tensors='pt', max_length=512, truncation=True)
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
 
-        # Convert tokens to the answer string
-        answer = self.tokenizer.convert_tokens_to_string(self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0][answer_start:answer_end]))
+            with torch.no_grad():
+                outputs = self.model(**inputs)
 
-        return answer
+            start_scores, end_scores = outputs.start_logits, outputs.end_logits
+            answer_start = torch.argmax(start_scores)
+            answer_end = torch.argmax(end_scores) + 1
+
+            if answer_start >= answer_end or answer_end > inputs['input_ids'].size(1):  # Check for valid index range
+                continue
+
+            answer = self.tokenizer.convert_tokens_to_string(self.tokenizer.convert_ids_to_tokens(inputs['input_ids'][0][answer_start:answer_end]))
+
+            confidence = self.calculate_confidence(start_scores, end_scores, answer_start, min(answer_end, inputs['input_ids'].size(1)))
+
+            if confidence > highest_confidence:
+                best_answer = answer
+                highest_confidence = confidence
+
+        return best_answer if best_answer is not None else "Sorry, I couldn't find an answer."
+
+    def chunk_context(self, context, chunk_size=128):
+        # Implement context chunking logic
+        # This is a simplified example. You might need a more sophisticated approach for splitting the context.
+        tokens = self.tokenizer.tokenize(context)
+        for i in range(0, len(tokens), chunk_size):
+            yield self.tokenizer.convert_tokens_to_string(tokens[i:i + chunk_size])
+
+
+    def calculate_confidence(self, start_logits, end_logits, start_idx, end_idx):
+        # Check if indices are within the range and adjust if necessary
+        start_idx = min(start_idx, start_logits.size(1) - 1)
+        end_idx = min(end_idx, end_logits.size(1) - 1)
+
+        start_confidence = start_logits[0][start_idx]
+        end_confidence = end_logits[0][end_idx - 1]  # end_idx is exclusive
+        return (start_confidence + end_confidence).item() / 2

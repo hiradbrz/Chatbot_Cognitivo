@@ -1,9 +1,9 @@
 import gradio as gr
 from model import QA_Model
-from vectordb import vectorStore
+from vectordb import VectorStore
 
 qa_bot = QA_Model()
-db = vectorStore()
+db = VectorStore()
 
 def create_prompt(question, context):
     """
@@ -33,15 +33,24 @@ def update_chat(history, user_input):
     if not user_input.strip():
         return history + "Bot: Please enter a question.\n\n", ""
 
-    context = db.dbsearch(query=user_input)
+    # Searching for context
+    context = db.db_search(query=user_input)
 
-    # Call the answer method with separate question and context
-    bot_response = qa_bot.answer(user_input, context)
+    # Handle empty or irrelevant inputs
+    if not context:
+        bot_response = "I'm not sure how to answer that. Could you provide more detail or ask a different question?"
+    else:
+        bot_response = qa_bot.answer(user_input, context)
 
     return history + f"You: {user_input}\n\nBot: {bot_response}\n\n", ""
 
 
 css_style = """
+
+    /* existing CSS */
+    .loading { animation: spin 1s linear infinite; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+
     /* Basic reset */
     * { box-sizing: border-box; }
     body, html { 
@@ -104,20 +113,19 @@ css_style = """
         border-radius: 0 0 8px 8px; 
     }
 """
-
 def main_interface():
     with gr.Blocks(css=css_style) as block:
         gr.Markdown("🤖 NSW Land Tax Services Chatbot 💬")
-        
+
         with gr.Row():
             gender = gr.Radio(["Male", "Female", "Other"], label="Gender")
-            user_id = gr.Textbox(label="ID")
-            age = gr.Number(label="Age", min=18, max=120)
+            user_id = gr.Textbox(label="ID", placeholder="Enter your ID", elem_id="user_id")
+            age = gr.Number(label="Age", min=18, max=120, elem_id="age")
             start_button = gr.Button("Start Chat")
 
         chat_history = gr.Textbox(label="Chat History", placeholder="Chat will appear here...", lines=15, interactive=False)
         user_message = gr.Textbox(label="Your Message", placeholder="Type your message here...")
-        send_button = gr.Button("Send")
+        send_button = gr.Button("Send", elem_id="send_button")
 
         start_button.click(start_chat, inputs=[gender, user_id, age], outputs=chat_history)
         send_button.click(update_chat, inputs=[chat_history, user_message], outputs=[chat_history, user_message])
@@ -126,7 +134,7 @@ def main_interface():
             <div class="footer">
                 <p>Powered by Cognitivo</p>
             </div>
-            ''')
+        ''')
 
     return block
 
