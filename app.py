@@ -25,7 +25,6 @@ def create_prompt(question, context):
 def start_chat(gender, user_id, age):
     welcome_message = (
         f"Hello! I'm here to assist you with NSW land tax services.\n"
-        f"Gender: {gender}, ID: {user_id}, Age: {age}\n"
         "Feel free to ask me any questions you have.\n\n"
     )
     return welcome_message
@@ -35,17 +34,75 @@ def update_chat(history, user_input):
         return history + "Bot: Please enter a question.\n\n", ""
 
     context = db.dbsearch(query=user_input)
-    prompt = create_prompt(user_input, context)  
-    bot_response = qa_bot.answer(prompt)
+
+    # Call the answer method with separate question and context
+    bot_response = qa_bot.answer(user_input, context)
 
     return history + f"You: {user_input}\n\nBot: {bot_response}\n\n", ""
 
+
 css_style = """
-    body { font-family: Arial, sans-serif; }
-    .gr-textbox, .gr-radio, .gr-number, .gr-button { width: 100%; }
-    .gr-button { background-color: #4CAF50; color: white; margin-top: 10px; }
-    .gr-output { margin-top: 15px; }
-    .footer { text-align: center; margin-top: 20px; font-size: 0.8em; }
+    /* Basic reset */
+    * { box-sizing: border-box; }
+    body, html { 
+        margin: 0; padding: 0; font-family: 'Arial', sans-serif; 
+        background-color: #1E1E1E; color: #FFFFFF;
+    }
+
+    /* Container styling */
+    .gradio-container { 
+        max-width: 700px; margin: 30px auto; padding: 20px; 
+        background-color: #2D2D2D; border-radius: 8px; 
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2); 
+    }
+
+    /* Header styling */
+    h1 { color: #FFF; text-align: center; margin-bottom: 30px; }
+
+    /* Input fields styling */
+    .gr-textbox, .gr-number, .gr-radio { width: 100%; margin-bottom: 15px; }
+    .gr-textbox { 
+        border-radius: 4px; border: 1px solid #555; padding: 10px 15px; 
+        font-size: 16px; background-color: #333; color: #FFF;
+    }
+    .gr-textbox:focus { outline: none; border-color: #4A90E2; }
+    .gr-radio label { margin-right: 15px; color: #FFF; }
+
+    /* Button styling */
+    .gr-button { 
+        background-color: #4A90E2; color: white; padding: 10px 20px; 
+        border: none; border-radius: 4px; cursor: pointer; 
+        font-size: 16px; margin-top: 10px; 
+    }
+    .gr-button:hover { background-color: #357ABD; }
+
+    /* Chat history styling */
+    .chat-history { 
+        height: 300px; overflow-y: auto; background-color: #333; 
+        border-radius: 4px; border: 1px solid #555; 
+        padding: 10px; margin-bottom: 15px; color: #FFF;
+    }
+
+    /* Chat message styling */
+    .user-message, .bot-message { 
+        border-radius: 15px; padding: 8px 12px; 
+        max-width: 80%; margin-bottom: 5px; word-wrap: break-word;
+    }
+    .user-message { 
+        background-color: #5cb85c; margin-left: auto; 
+        margin-right: 10px; text-align: right;
+    }
+    .bot-message { 
+        background-color: #337ab7; margin-left: 10px; 
+        margin-right: auto; text-align: left;
+    }
+
+    /* Footer styling */
+    .footer { 
+        text-align: center; padding: 15px 0; background-color: #333; 
+        color: white; font-size: 14px; margin-top: 20px; 
+        border-radius: 0 0 8px 8px; 
+    }
 """
 
 def main_interface():
