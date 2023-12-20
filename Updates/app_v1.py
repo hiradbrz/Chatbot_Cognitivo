@@ -51,6 +51,12 @@ def update_chat(history, user_input, query_type):
     if not user_input.strip():
         return history + "Bot: Please enter a message.\n\n", ""
 
+    # Summarize the user input
+    summary = summarization_bot.summarize(user_input)
+
+    bot_response = ""
+    bot_response_message = ""
+
     if query_type == "General":
         # Use DialogModel for general queries
         bot_response = dialog_bot.generate_response_dia(user_input)
@@ -66,17 +72,11 @@ def update_chat(history, user_input, query_type):
         else:
             bot_response = "Sorry, I couldn't find relevant information for your enquiry."
             bot_response_message = "Bot (QA_Model):"
-
-    elif query_type == "Summarization":
-        # Use Summarization_Model for summarization queries
-        bot_response = summarization_bot.summarize(user_input)
-        bot_response_message = "Bot (Summarization_Model):"
-
     else:
         bot_response = "Invalid query type selected."
         bot_response_message = "Bot:"
 
-    return history + f"You: {user_input}\n\n{bot_response_message} {bot_response}\n\n", ""
+    return history + f"You: {user_input}\n\n{bot_response_message} {bot_response}\n\n", summary
 
 
 css_style = """
@@ -153,7 +153,7 @@ def main_interface():
         gr.Markdown("🤖 NSW Land Tax Services Chatbot 💬")
 
         with gr.Row():
-            query_type = gr.Radio(["General", "TaxGPT"],"Summarization", label="Select Query Type")
+            query_type = gr.Radio(["General", "TaxGPT"], label="Select Query Type")
             user_id = gr.Textbox(label="ID", placeholder="Enter your ID", elem_id="user_id")
             age = gr.Number(label="Age", min=18, max=120, elem_id="age")
             start_button = gr.Button("Start Chat")
