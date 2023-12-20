@@ -1,6 +1,6 @@
 import gradio as gr
-from Code.model import DialogModel, QA_Model
-from Code.vectordb import VectorStore
+from model import DialogModel, QA_Model
+from vectordb import VectorStore
 
 # Initialize DialogModel and QA_Model
 dialog_bot = DialogModel()
