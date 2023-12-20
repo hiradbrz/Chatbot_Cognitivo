@@ -1,5 +1,6 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 class QA_Model:
     def __init__(self):
@@ -55,3 +56,36 @@ class QA_Model:
         start_confidence = start_logits[0][start_idx]
         end_confidence = end_logits[0][end_idx - 1]  # end_idx is exclusive
         return (start_confidence + end_confidence).item() / 2
+
+
+class DialogModel:
+    def __init__(self):
+        # Initialize the tokenizer and model from the 'microsoft/DialoGPT-medium' pre-trained model
+        self.tokenizer = AutoTokenizer.from_pretrained('microsoft/DialoGPT-medium')
+        self.model = AutoModelForCausalLM.from_pretrained('microsoft/DialoGPT-medium')
+        
+        # Check if CUDA (GPU support) is available and set the device accordingly
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model.to(self.device)
+
+        # Initialize a variable to store the history of the conversation
+        self.chat_history_ids = None
+
+    def generate_response_dia(self, user_input):
+        # Tokenize the user's input and append the end of string token
+        new_input_ids = self.tokenizer.encode(user_input + self.tokenizer.eos_token, return_tensors='pt')
+        new_input_ids = new_input_ids.to(self.device)
+
+        # Concatenate the new input with the chat history (if there is an existing history)
+        bot_input_ids = torch.cat([self.chat_history_ids, new_input_ids], dim=-1) if self.chat_history_ids is not None else new_input_ids
+
+        # Generate a response using the model
+        with torch.no_grad():
+            bot_outputs = self.model.generate(bot_input_ids, max_length=1000, pad_token_id=self.tokenizer.eos_token_id)
+
+        # Update the chat history with the generated response
+        self.chat_history_ids = bot_outputs if self.chat_history_ids is None else bot_outputs[:, self.chat_history_ids.shape[-1]:]
+
+        # Decode the model's output to a human-readable format
+        response = self.tokenizer.decode(bot_outputs[:, bot_input_ids.shape[-1]:][0], skip_special_tokens=True)
+        return response

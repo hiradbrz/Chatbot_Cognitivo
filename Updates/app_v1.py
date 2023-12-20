@@ -1,48 +1,82 @@
 import gradio as gr
-from model import QA_Model
-from vectordb import VectorStore
+from Code.model import DialogModel, QA_Model, Summarization_Model
+from Code.vectordb import VectorStore
 
+# Initialize DialogModel and QA_Model
+dialog_bot = DialogModel()
 qa_bot = QA_Model()
 db = VectorStore()
+summarization_bot = Summarization_Model()
 
-def create_prompt(question, context):
+def create_prompt(question, context, query_type):
     """
-    Create a prompt template for the QA model, specifically for handling
-    inquiries about land tax and related problems for NSW service.
+    Create a prompt template based on the query type.
     """
-    prompt = f"""
-    As a knowledgeable assistant for New South Wales (NSW) land tax services, 
-    answer the following question based on the provided context.
+    if query_type == "TaxGPT":
+        # Prompt template for LanTax queries
+        prompt = f"""
+        As a knowledgeable assistant for New South Wales (NSW) land tax services, 
+        answer the following question based on the provided context.
+        Also show the context details in the output, because it makes the bot better.
 
-    Question: {question}
+        Question: {question}
 
-    Context Relevant to NSW Land Tax Services: {context}
+        Context Relevant to NSW Land Tax Services: {context}
 
-    Answer:
-    """
+        Answer:
+        """
+    else:
+        # Prompt template for General queries
+        prompt = f"""
+        You've asked a general question. Please provide more details if necessary.
+
+        Question: {question}
+
+        Context: {context}
+
+        Answer:
+        """
     return prompt.strip()
 
-def start_chat(gender, user_id, age):
+
+def start_chat(gender, user_id, age, query_type):
     welcome_message = (
         f"Hello! I'm here to assist you with NSW land tax services.\n"
         "Feel free to ask me any questions you have.\n\n"
     )
-    return welcome_message
+    prompt = create_prompt("", "", query_type)  # Generate the prompt based on query_type
+    return welcome_message, query_type
 
-def update_chat(history, user_input):
+def update_chat(history, user_input, query_type):
     if not user_input.strip():
-        return history + "Bot: Please enter a question.\n\n", ""
+        return history + "Bot: Please enter a message.\n\n", ""
 
-    # Searching for context
-    context = db.db_search(query=user_input)
+    if query_type == "General":
+        # Use DialogModel for general queries
+        bot_response = dialog_bot.generate_response_dia(user_input)
+        bot_response_message = "Bot (DialogModel):"
+    elif query_type == "TaxGPT":
+        # Use QA_Model for TaxGPT queries
+        context = db.db_search(query=user_input)
+        if context:
+            bot_response = qa_bot.answer(user_input, context)
+            context_details = f"Context: {context}\n\n"
+            bot_response = context_details + bot_response
+            bot_response_message = "Bot (QA_Model):"
+        else:
+            bot_response = "Sorry, I couldn't find relevant information for your enquiry."
+            bot_response_message = "Bot (QA_Model):"
 
-    # Handle empty or irrelevant inputs
-    if not context:
-        bot_response = "I'm not sure how to answer that. Could you provide more detail or ask a different question?"
+    elif query_type == "Summarization":
+        # Use Summarization_Model for summarization queries
+        bot_response = summarization_bot.summarize(user_input)
+        bot_response_message = "Bot (Summarization_Model):"
+
     else:
-        bot_response = qa_bot.answer(user_input, context)
+        bot_response = "Invalid query type selected."
+        bot_response_message = "Bot:"
 
-    return history + f"You: {user_input}\n\nBot: {bot_response}\n\n", ""
+    return history + f"You: {user_input}\n\n{bot_response_message} {bot_response}\n\n", ""
 
 
 css_style = """
@@ -113,12 +147,13 @@ css_style = """
         border-radius: 0 0 8px 8px; 
     }
 """
+
 def main_interface():
     with gr.Blocks(css=css_style) as block:
         gr.Markdown("🤖 NSW Land Tax Services Chatbot 💬")
 
         with gr.Row():
-            gender = gr.Radio(["Male", "Female", "Other"], label="Gender")
+            query_type = gr.Radio(["General", "TaxGPT"],"Summarization", label="Select Query Type")
             user_id = gr.Textbox(label="ID", placeholder="Enter your ID", elem_id="user_id")
             age = gr.Number(label="Age", min=18, max=120, elem_id="age")
             start_button = gr.Button("Start Chat")
@@ -127,8 +162,8 @@ def main_interface():
         user_message = gr.Textbox(label="Your Message", placeholder="Type your message here...")
         send_button = gr.Button("Send", elem_id="send_button")
 
-        start_button.click(start_chat, inputs=[gender, user_id, age], outputs=chat_history)
-        send_button.click(update_chat, inputs=[chat_history, user_message], outputs=[chat_history, user_message])
+        start_button.click(start_chat, inputs=[user_id, age, query_type], outputs=[chat_history, query_type])
+        send_button.click(update_chat, inputs=[chat_history, user_message, query_type], outputs=[chat_history, user_message])
 
         gr.Markdown('''
             <div class="footer">
@@ -136,7 +171,7 @@ def main_interface():
             </div>
         ''')
 
-    return block
+    return block  # Return the Gradio interface block
 
 if __name__ == "__main__":
     main_interface().launch(share=False)

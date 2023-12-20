@@ -1,7 +1,7 @@
 import gradio as gr
 # from model import qa_bot
-from model import summary_llm
-from vectordb import vectorStore
+from Code.model import summary_llm
+from Code.vectordb import vectorStore
 
 import time
 
