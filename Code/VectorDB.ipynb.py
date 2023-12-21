@@ -1,9 +1,16 @@
+# Databricks notebook source
+#%pip install farm-haystack mlflow
+#%pip install farm-haystack[faiss]
+#%pip install farm-haystack[inference] torch
 import os
 import pandas as pd
 import logging
 from haystack.document_stores import FAISSDocumentStore
 from haystack.nodes import EmbeddingRetriever
 from haystack.pipelines import FAQPipeline
+import mlflow
+from mlflow.pyfunc import PythonModel
+
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO)
@@ -67,3 +74,25 @@ class VectorStore:
         except Exception as e:
             logging.error("Error during database creation: %s", str(e))
 
+
+
+class VectorStoreWrapper(VectorStore, PythonModel):
+    def predict(self, context, model_input):
+        # Assuming model_input is a query string
+        return super().db_search(model_input)
+
+# Log the model in MLflow
+with mlflow.start_run():
+    vector_store_model = VectorStoreWrapper()
+    mlflow.pyfunc.log_model("vector_store_model", python_model=vector_store_model)
+
+# Register the model in MLflow Model Registry
+# Replace 'your_run_id_here' with the actual run ID from MLflow
+run_id = "your_run_id_here"
+mlflow.register_model(f"runs:/{run_id}/vector_store_model", "VectorStore_Model_Registry")
+
+
+
+# COMMAND ----------
+
+dbutils.library.restartPython()
