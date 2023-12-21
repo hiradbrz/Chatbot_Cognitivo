@@ -1,31 +1,43 @@
 # Databricks notebook source
-#%pip install gradio farm-haystack
-#%pip install pydantic==1.10.13
-#%pip install gradio==3.50.2
-#%pip install farm-haystack[faiss]
-#%pip install farm-haystack[inference]
+# %pip install gradio farm-haystack
+# %pip install pydantic==1.10.13
+# %pip install gradio==3.50.2
+# %pip install farm-haystack[faiss]
+# %pip install farm-haystack[inference]
 import gradio as gr
 #from model import DialogModel, QA_Model
 from vectordb import VectorStore
 import requests
 
+import gradio as gr
+from model import DialogModel, QA_Model
+from vectordb import VectorStore
 
 # Initialize DialogModel and QA_Model
-#dialog_bot = DialogModel()
-#qa_bot = QA_Model()
+dialog_bot = DialogModel()
+qa_bot = QA_Model()
 db = VectorStore()
 
-def get_model_prediction(endpoint_url, user_input, access_token):
-    headers = {
-        "Authorization": f"Bearer dapi9c979f949e92eccc6b23128ed50b0b51",
-        "Content-Type": "application/json"
-    }
-    payload = {"inputs": user_input}  # Ensure this is a string
-    response = requests.post(endpoint_url, json=payload, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return f"Error: {response.text}"
+import os
+import requests
+import numpy as np
+import pandas as pd
+import json
+
+def create_tf_serving_json(data):
+    return {'inputs': {name: data[name].tolist() for name in data.keys()} if isinstance(data, dict) else data.tolist()}
+
+def score_model(dataset,url):
+    url = url
+    headers = {'Authorization': f'Bearer dapi6912013219e5863b9be7d262dba4e1f3', 'Content-Type': 'application/json'}
+    ds_dict = {'dataframe_split': dataset.to_dict(orient='split')} if isinstance(dataset, pd.DataFrame) else create_tf_serving_json(dataset)
+    data_json = json.dumps(ds_dict, allow_nan=True)
+    response = requests.request(method='POST', headers=headers, url=url, data=data_json)
+    if response.status_code != 200:
+        raise Exception(f'Request failed with status {response.status_code}, {response.text}')
+
+    return response.json()
+
 def create_prompt(question, context, query_type):
     """
     Create a prompt template based on the query type.
@@ -72,15 +84,16 @@ def update_chat(history, user_input, query_type):
         return history + "Bot: Please enter a message.\n\n", ""
 
     if query_type == "General":
-        dialog_endpoint_url = "https://adb-1012386050250820.0.azuredatabricks.net/serving-endpoints/Dialog_Model/invocations"
-        bot_response = get_model_prediction(dialog_endpoint_url, user_input, access_token)
+        dialog_endpoint_url = "http://your-dialog-model-endpoint-url"
+        bot_response = score_model(user_input,dialog_endpoint_url)
         bot_response_message = "Bot (DialogModel):"
     elif query_type == "TaxGPT":
-        qa_endpoint_url = "https://adb-1012386050250820.0.azuredatabricks.net/serving-endpoints/QA_Model/invocations"
+        qa_endpoint_url = "http://your-qa-model-endpoint-url"
+        # Assuming you still use VectorStore locally for context retrieval
         context = "example context"  # Replace with actual context retrieval logic
-        bot_response = get_model_prediction(qa_endpoint_url, {"question": user_input, "context": context}, access_token)
+        bot_response = score_model(user_input+context,qa_endpoint_url)
         context_details = f"Context: {context}\n\n"
-        bot_response = context_details + str(bot_response)  # Convert response to string if necessary
+        bot_response = context_details + bot_response
         bot_response_message = "Bot (QA_Model):"
     else:
         bot_response = "Invalid query type selected."
@@ -182,8 +195,9 @@ def main_interface():
 
     return block  # Return the Gradio interface block
 
+
 if __name__ == "__main__":
-    main_interface().launch(share=True)
+    main_interface().launch(share=False)
 
 
 # COMMAND ----------

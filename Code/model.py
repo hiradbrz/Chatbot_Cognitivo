@@ -1,5 +1,5 @@
 #%pip install torch
-%pip install mlflow transformers
+#%pip install mlflow transformers
 import torch
 from transformers import AutoTokenizer, AutoModelForQuestionAnswering
 from transformers import AutoTokenizer, AutoModelForCausalLM

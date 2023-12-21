@@ -7,16 +7,26 @@ dialog_bot = DialogModel()
 qa_bot = QA_Model()
 db = VectorStore()
 
-def get_model_prediction(endpoint_url, data, access_token):
-    headers = {
-        "Authorization": f"Bearer dapi9c979f949e92eccc6b23128ed50b0b51",
-        "Content-Type": "application/json"
-    }
-    response = requests.post(endpoint_url, json=data, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return f"Error: {response.text}"
+import os
+import requests
+import numpy as np
+import pandas as pd
+import json
+
+def create_tf_serving_json(data):
+    return {'inputs': {name: data[name].tolist() for name in data.keys()} if isinstance(data, dict) else data.tolist()}
+
+def score_model(dataset,url):
+    url = url
+    headers = {'Authorization': f'Bearer dapi6912013219e5863b9be7d262dba4e1f3', 'Content-Type': 'application/json'}
+    ds_dict = {'dataframe_split': dataset.to_dict(orient='split')} if isinstance(dataset, pd.DataFrame) else create_tf_serving_json(dataset)
+    data_json = json.dumps(ds_dict, allow_nan=True)
+    response = requests.request(method='POST', headers=headers, url=url, data=data_json)
+    if response.status_code != 200:
+        raise Exception(f'Request failed with status {response.status_code}, {response.text}')
+
+    return response.json()
+
 
 
 def create_prompt(question, context, query_type):
@@ -66,13 +76,13 @@ def update_chat(history, user_input, query_type):
 
     if query_type == "General":
         dialog_endpoint_url = "http://your-dialog-model-endpoint-url"
-        bot_response = get_model_prediction(dialog_endpoint_url, {"text": user_input}, access_token)
+        bot_response = score_model(user_input,dialog_endpoint_url)
         bot_response_message = "Bot (DialogModel):"
     elif query_type == "TaxGPT":
         qa_endpoint_url = "http://your-qa-model-endpoint-url"
         # Assuming you still use VectorStore locally for context retrieval
         context = "example context"  # Replace with actual context retrieval logic
-        bot_response = get_model_prediction(qa_endpoint_url, {"question": user_input, "context": context}, access_token)
+        bot_response = score_model(user_input+context,qa_endpoint_url)
         context_details = f"Context: {context}\n\n"
         bot_response = context_details + bot_response
         bot_response_message = "Bot (QA_Model):"
